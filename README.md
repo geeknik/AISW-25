@@ -102,7 +102,6 @@ Five systemic dynamics make this urgent:
 ├── README.md
 ├── LICENSE                          # CC BY-SA 4.0
 ├── CONTRIBUTING.md
-├── AISW-25_v0.1.docx               # Canonical specification document
 ├── entries/
 │   ├── AISW-001.md                  # Individual entry files (structured markdown)
 │   ├── AISW-002.md
