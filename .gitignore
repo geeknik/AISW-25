@@ -1,0 +1,17 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Generated checklists (regenerate with tools/checklist-generator.py)
+checklist*.md
+checklist*.txt
+
+# Node
+node_modules/
