@@ -134,7 +134,7 @@ All contributions are reviewed by maintainers and must include evidence or reaso
 ```
 Aether Systems Labs. "AISW-25: AI-Induced Software Weaknesses —
 Top 25 Catalog of Failure Amplifiers in AI-Assisted Software Development."
-Version 0.1, March 2026. https://github.com/aethersystemslabs/aisw-25
+Version 0.1, March 2026. https://github.com/geeknik/aisw-25
 ```
 
 BibTeX:
@@ -145,7 +145,7 @@ BibTeX:
   year      = {2026},
   month     = {3},
   version   = {0.1},
-  url       = {https://github.com/aethersystemslabs/aisw-25},
+  url       = {https://github.com/geeknik/aisw-25},
   note      = {Top 25 Catalog of Failure Amplifiers in AI-Assisted Software Development}
 }
 ```
