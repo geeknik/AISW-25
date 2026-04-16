@@ -36,7 +36,7 @@ However, the migration has no transaction wrapping. If it fails after copying bu
 
 ## Related Mappings
 
-- **CWE-311**: Missing Encryption of Sensitive Data
+- **CWE-459**: Incomplete Cleanup
 - **CWE-532**: Insertion of Sensitive Information into Log File
 
 ## Severity Rationale

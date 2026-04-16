@@ -38,7 +38,7 @@ The processor retries indefinitely with increasing delays, spawning queued jobs 
 
 - **CWE-400**: Uncontrolled Resource Consumption
 - **CWE-1333**: Inefficient Regular Expression Complexity
-- **OWASP LLM04**: Denial of Service
+- **OWASP LLM10**: Unbounded Consumption
 
 ## Severity Rationale
 

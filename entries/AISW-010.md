@@ -38,7 +38,7 @@ The agent's write permissions allow all three actions. The CI run executes the r
 
 - **CWE-250**: Execution with Unnecessary Privileges
 - **CWE-269**: Improper Privilege Management
-- **OWASP LLM08**: Excessive Agency
+- **OWASP LLM06**: Excessive Agency
 
 ## Severity Rationale
 

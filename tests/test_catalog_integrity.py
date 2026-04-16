@@ -1,4 +1,5 @@
 import csv
+import collections
 import importlib.util
 import re
 import sys
@@ -118,6 +119,45 @@ class ChecklistGeneratorTests(unittest.TestCase):
 
 
 class CatalogIntegrityTests(unittest.TestCase):
+    def read_entry_mapping_ids(self) -> dict[str, dict[str, set[str]]]:
+        mappings: dict[str, dict[str, set[str]]] = {}
+
+        for entry_path in sorted((REPO_ROOT / "entries").glob("AISW-*.md")):
+            text = entry_path.read_text(encoding="utf-8")
+            entry_id = re.search(r"^# (AISW-\d+):", text, re.MULTILINE).group(1)
+            block = text.split("## Related Mappings", 1)[1].split(
+                "## Severity Rationale", 1
+            )[0]
+            entry_mappings = {"cwe": set(), "owasp": set()}
+
+            for line in block.splitlines():
+                stripped = line.strip()
+                if not stripped.startswith("- **"):
+                    continue
+                mapping_id = stripped.split("**", 2)[1]
+                if mapping_id.startswith("CWE-") or mapping_id == "N/A":
+                    entry_mappings["cwe"].add(mapping_id)
+                if mapping_id.startswith("OWASP") or mapping_id == "N/A":
+                    entry_mappings["owasp"].add(mapping_id)
+
+            mappings[entry_id] = entry_mappings
+
+        return mappings
+
+    def read_csv_mapping_ids(
+        self, mapping_file: Path, id_column: str
+    ) -> dict[str, set[str]]:
+        mappings: dict[str, set[str]] = collections.defaultdict(set)
+
+        with mapping_file.open(encoding="utf-8", newline="") as handle:
+            for row in csv.DictReader(handle):
+                for entry_id in row["aisw_ids"].split(";"):
+                    normalized = entry_id.strip()
+                    if normalized:
+                        mappings[normalized].add(row[id_column])
+
+        return dict(mappings)
+
     def test_readme_severity_distribution_matches_entry_files(self) -> None:
         entries = checklist_generator.load_entries(REPO_ROOT / "entries")
         actual_counts = Counter(entry.severity for entry in entries)
@@ -159,6 +199,40 @@ class CatalogIntegrityTests(unittest.TestCase):
                     )
 
         self.assertEqual(entry_ids, mapped_ids)
+
+    def test_machine_readable_cwe_mappings_match_entry_files(self) -> None:
+        entry_mappings = self.read_entry_mapping_ids()
+        csv_mappings = self.read_csv_mapping_ids(
+            REPO_ROOT / "mappings" / "cwe-cross-reference.csv",
+            "cwe_id",
+        )
+        expected = {
+            entry_id: values["cwe"]
+            for entry_id, values in entry_mappings.items()
+            if values["cwe"]
+        }
+
+        self.assertEqual(
+            expected,
+            csv_mappings,
+        )
+
+    def test_machine_readable_owasp_mappings_match_entry_files(self) -> None:
+        entry_mappings = self.read_entry_mapping_ids()
+        csv_mappings = self.read_csv_mapping_ids(
+            REPO_ROOT / "mappings" / "owasp-cross-reference.csv",
+            "owasp_id",
+        )
+        expected = {
+            entry_id: values["owasp"]
+            for entry_id, values in entry_mappings.items()
+            if values["owasp"]
+        }
+
+        self.assertEqual(
+            expected,
+            csv_mappings,
+        )
 
 
 if __name__ == "__main__":

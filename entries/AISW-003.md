@@ -38,7 +38,7 @@ The developer installs the package, the payload executes during import, and AWS 
 
 - **CWE-829**: Inclusion of Functionality from Untrusted Control Sphere
 - **CWE-1357**: Reliance on Insufficiently Trustworthy Component
-- **OWASP LLM05**: Supply Chain Vulnerabilities
+- **OWASP LLM03**: Supply Chain
 
 ## Severity Rationale
 

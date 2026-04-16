@@ -39,7 +39,7 @@ The organization's AI code review bot processes the PR description as context, f
 - **CWE-94**: Improper Control of Generation of Code
 - **CWE-77**: Command Injection
 - **OWASP LLM01**: Prompt Injection
-- **OWASP LLM08**: Excessive Agency
+- **OWASP LLM06**: Excessive Agency
 
 ## Severity Rationale
 

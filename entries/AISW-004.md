@@ -38,7 +38,7 @@ The configuration passes `terraform plan` and deploys successfully. Three weeks 
 
 - **CWE-276**: Incorrect Default Permissions
 - **CWE-732**: Incorrect Permission Assignment for Critical Resource
-- **OWASP LLM05**: Supply Chain Vulnerabilities
+- **OWASP A02**: Security Misconfiguration
 
 ## Severity Rationale
 

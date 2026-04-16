@@ -38,7 +38,7 @@ The developer reviews the overall structure, approves the refactor, and merges. 
 
 - **CWE-798**: Use of Hard-coded Credentials
 - **CWE-312**: Cleartext Storage of Sensitive Information
-- **OWASP LLM06**: Sensitive Information Disclosure
+- **OWASP LLM02**: Sensitive Information Disclosure
 
 ## Severity Rationale
 

@@ -38,7 +38,7 @@ A disgruntled contractor with log access harvests passwords from authentication 
 
 - **CWE-532**: Insertion of Sensitive Information into Log File
 - **CWE-209**: Generation of Error Message Containing Sensitive Information
-- **OWASP LLM06**: Sensitive Information Disclosure
+- **OWASP LLM02**: Sensitive Information Disclosure
 
 ## Severity Rationale
 

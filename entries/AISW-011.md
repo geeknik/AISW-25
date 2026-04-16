@@ -36,8 +36,8 @@ The assistant generates code following the outdated pattern, complete with plain
 
 ## Related Mappings
 
-- **CWE-1059**: Insufficient Technical Documentation
-- **OWASP LLM03**: Training Data Poisoning (by analogy to retrieval poisoning)
+- **CWE-348**: Use of Less Trusted Source
+- **OWASP LLM08**: Vector and Embedding Weaknesses
 
 ## Severity Rationale
 

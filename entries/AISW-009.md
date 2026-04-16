@@ -36,7 +36,7 @@ The application processes user-uploaded XML files, allowing an attacker to read 
 
 ## Related Mappings
 
-- **CWE-611**: Improper Restriction of XML External Entity Reference
+- **CWE-477**: Use of Obsolete Function
 - **CWE-1104**: Use of Unmaintained Third Party Components
 
 ## Severity Rationale
