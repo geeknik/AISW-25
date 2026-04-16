@@ -7,174 +7,294 @@ Supports filtering by severity, output in markdown or plaintext,
 and custom checklist scoping by entry ID.
 
 Usage:
-    python checklist-generator.py                          # All entries
-    python checklist-generator.py --severity CRITICAL HIGH # Filter by severity
-    python checklist-generator.py --entries AISW-001 AISW-007 AISW-010
-    python checklist-generator.py --format plain           # Plaintext output
-    python checklist-generator.py --output checklist.md    # Write to file
+    python checklist_generator.py                          # All entries
+    python checklist_generator.py --severity CRITICAL HIGH # Filter by severity
+    python checklist_generator.py --entries AISW-001 AISW-007 AISW-010
+    python checklist_generator.py --format plain           # Plaintext output
+    python checklist_generator.py --output checklist.md    # Write to file
 """
 
+from __future__ import annotations
+
 import argparse
-import os
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Sequence
+
+VERSION = "0.1"
+SEVERITY_ORDER = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}
+REQUIRED_SECTIONS = (
+    "Description",
+    "Exploit Scenario",
+    "Detection Methods",
+    "Mitigations",
+    "Related Mappings",
+    "Severity Rationale",
+)
 
 
-def parse_entry(filepath: str) -> dict:
-    """Parse an AISW entry markdown file into structured data."""
-    with open(filepath, "r", encoding="utf-8") as f:
-        content = f.read()
+class EntryParseError(ValueError):
+    """Raised when an AISW entry does not match the expected schema."""
 
-    entry = {"filepath": filepath}
 
-    # Extract ID and name from title
-    title_match = re.search(r"^# (AISW-\d+): (.+)$", content, re.MULTILINE)
-    if title_match:
-        entry["id"] = title_match.group(1)
-        entry["name"] = title_match.group(2)
+@dataclass(frozen=True)
+class Entry:
+    """Structured representation of a validated AISW entry."""
 
-    # Extract severity from table
-    sev_match = re.search(r"\*\*Severity\*\*\s*\|\s*(\w+)", content)
-    if sev_match:
-        entry["severity"] = sev_match.group(1)
+    filepath: Path
+    entry_id: str
+    name: str
+    severity: str
+    rank: int
+    detection: tuple[str, ...]
+    mitigations: tuple[str, ...]
 
-    # Extract rank
-    rank_match = re.search(r"\*\*Rank\*\*\s*\|\s*#(\d+)", content)
-    if rank_match:
-        entry["rank"] = int(rank_match.group(1))
 
-    # Extract detection methods
-    detection_section = re.search(
-        r"## Detection Methods\n\n((?:- .+\n)+)", content
+def parse_entry(filepath: Path | str) -> Entry:
+    """Parse and validate one AISW markdown entry."""
+    path = Path(filepath)
+    content = path.read_text(encoding="utf-8")
+
+    entry_id, name = parse_title(content)
+    table_id = extract_table_field(content, "Identifier")
+    if table_id != entry_id:
+        raise EntryParseError(
+            f"identifier mismatch between title ({entry_id}) and table ({table_id})"
+        )
+    if path.stem != entry_id:
+        raise EntryParseError(
+            f"filename stem {path.stem!r} does not match identifier {entry_id!r}"
+        )
+
+    rank_text = extract_table_field(content, "Rank")
+    rank_match = re.fullmatch(r"#(\d+)(?: of \d+)?", rank_text)
+    if rank_match is None:
+        raise EntryParseError(f"invalid rank value {rank_text!r}")
+    rank = int(rank_match.group(1))
+
+    severity = extract_table_field(content, "Severity").upper()
+    if severity not in SEVERITY_ORDER:
+        raise EntryParseError(f"unsupported severity {severity!r}")
+
+    sections = split_sections(content)
+    missing_sections = [name for name in REQUIRED_SECTIONS if name not in sections]
+    if missing_sections:
+        raise EntryParseError(
+            f"missing required sections: {', '.join(missing_sections)}"
+        )
+
+    for section_name in REQUIRED_SECTIONS:
+        if not sections[section_name].strip():
+            raise EntryParseError(f"section {section_name!r} must not be empty")
+
+    detection = parse_bullet_section(
+        sections["Detection Methods"], "Detection Methods"
     )
-    if detection_section:
-        entry["detection"] = [
-            line.lstrip("- ").strip()
-            for line in detection_section.group(1).strip().split("\n")
-            if line.strip()
-        ]
-    else:
-        entry["detection"] = []
+    mitigations = parse_bullet_section(sections["Mitigations"], "Mitigations")
+    parse_bullet_section(sections["Related Mappings"], "Related Mappings")
 
-    # Extract mitigations
-    mitigation_section = re.search(
-        r"## Mitigations\n\n((?:- .+\n)+)", content
+    return Entry(
+        filepath=path,
+        entry_id=entry_id,
+        name=name,
+        severity=severity,
+        rank=rank,
+        detection=detection,
+        mitigations=mitigations,
     )
-    if mitigation_section:
-        entry["mitigations"] = [
-            line.lstrip("- ").strip()
-            for line in mitigation_section.group(1).strip().split("\n")
-            if line.strip()
-        ]
-    else:
-        entry["mitigations"] = []
-
-    return entry
 
 
-def generate_markdown_checklist(entries: list, title: str = None) -> str:
+def parse_title(content: str) -> tuple[str, str]:
+    """Extract the entry identifier and name from the markdown title."""
+    match = re.search(r"^# (AISW-\d+): (.+)$", content, re.MULTILINE)
+    if match is None:
+        raise EntryParseError("missing title line '# AISW-XXX: Name'")
+    return match.group(1), match.group(2).strip()
+
+
+def extract_table_field(content: str, field_name: str) -> str:
+    """Extract one metadata field from the markdown table."""
+    pattern = rf"^\|\s*\*\*{re.escape(field_name)}\*\*\s*\|\s*(.+?)\s*\|$"
+    match = re.search(pattern, content, re.MULTILINE)
+    if match is None:
+        raise EntryParseError(f"missing table field {field_name!r}")
+    return match.group(1).strip()
+
+
+def split_sections(content: str) -> dict[str, str]:
+    """Split markdown into named level-two sections."""
+    matches = list(re.finditer(r"^## (.+)$", content, re.MULTILINE))
+    sections: dict[str, str] = {}
+
+    for index, match in enumerate(matches):
+        section_name = match.group(1).strip()
+        if section_name in sections:
+            raise EntryParseError(f"duplicate section {section_name!r}")
+
+        start = match.end()
+        end = matches[index + 1].start() if index + 1 < len(matches) else len(content)
+        sections[section_name] = content[start:end].strip()
+
+    return sections
+
+
+def parse_bullet_section(section_body: str, section_name: str) -> tuple[str, ...]:
+    """Parse a markdown bullet list and preserve wrapped bullet lines."""
+    items: list[str] = []
+    current_item: list[str] | None = None
+
+    for raw_line in section_body.splitlines():
+        stripped_line = raw_line.strip()
+        if not stripped_line:
+            continue
+
+        if raw_line.startswith("- "):
+            if current_item is not None:
+                items.append(" ".join(current_item).strip())
+            bullet_text = raw_line[2:].strip()
+            if not bullet_text:
+                raise EntryParseError(
+                    f"section {section_name!r} contains an empty bullet"
+                )
+            current_item = [bullet_text]
+            continue
+
+        if raw_line.startswith("  ") or raw_line.startswith("\t"):
+            if current_item is None:
+                raise EntryParseError(
+                    f"section {section_name!r} starts with a continuation line"
+                )
+            current_item.append(stripped_line)
+            continue
+
+        raise EntryParseError(
+            f"section {section_name!r} contains unsupported line format: {raw_line!r}"
+        )
+
+    if current_item is not None:
+        items.append(" ".join(current_item).strip())
+
+    if not items:
+        raise EntryParseError(f"section {section_name!r} must contain bullet items")
+
+    return tuple(items)
+
+
+def sort_entries(entries: Sequence[Entry]) -> list[Entry]:
+    """Sort entries by severity and then rank."""
+    return sorted(
+        entries,
+        key=lambda entry: (SEVERITY_ORDER[entry.severity], entry.rank),
+    )
+
+
+def generate_markdown_checklist(
+    entries: Sequence[Entry], title: str | None = None
+) -> str:
     """Generate a markdown-formatted review checklist."""
-    lines = []
-
-    if title:
-        lines.append(f"# {title}")
-    else:
-        lines.append("# AISW-25 Security Review Checklist")
-
-    lines.append("")
+    lines = [f"# {title}" if title else "# AISW-25 Security Review Checklist", ""]
     lines.append(
-        f"Generated from AISW-25 v0.1 | {len(entries)} entries | "
-        f"Aether Systems Labs, Inc."
+        f"Generated from AISW-25 v{VERSION} | {len(entries)} entries | "
+        "Aether Systems Labs, Inc."
     )
-    lines.append("")
-    lines.append("---")
-    lines.append("")
+    lines.extend(["", "---", ""])
 
-    severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}
-    sorted_entries = sorted(
-        entries, key=lambda e: (severity_order.get(e.get("severity", ""), 3), e.get("rank", 99))
-    )
+    current_severity: str | None = None
+    for entry in sort_entries(entries):
+        if entry.severity != current_severity:
+            current_severity = entry.severity
+            lines.extend([f"## {entry.severity}", ""])
 
-    current_severity = None
-    for entry in sorted_entries:
-        sev = entry.get("severity", "UNKNOWN")
-        if sev != current_severity:
-            current_severity = sev
-            lines.append(f"## {sev}")
-            lines.append("")
-
-        eid = entry.get("id", "???")
-        name = entry.get("name", "Unknown")
-        lines.append(f"### {eid}: {name}")
+        lines.extend([f"### {entry.entry_id}: {entry.name}", ""])
+        lines.extend(["**Detection Checks:**", ""])
+        lines.extend(f"- [ ] {item}" for item in entry.detection)
+        lines.append("")
+        lines.extend(["**Mitigation Verification:**", ""])
+        lines.extend(f"- [ ] {item}" for item in entry.mitigations)
         lines.append("")
 
-        lines.append("**Detection Checks:**")
-        lines.append("")
-        for d in entry.get("detection", []):
-            lines.append(f"- [ ] {d}")
-        lines.append("")
-
-        lines.append("**Mitigation Verification:**")
-        lines.append("")
-        for m in entry.get("mitigations", []):
-            lines.append(f"- [ ] {m}")
-        lines.append("")
-
-    lines.append("---")
-    lines.append("")
-    lines.append("*AISW-25 v0.1 — CC BY-SA 4.0*")
+    lines.extend(["---", "", f"*AISW-25 v{VERSION} — CC BY-SA 4.0*"])
     return "\n".join(lines)
 
 
-def generate_plain_checklist(entries: list) -> str:
+def generate_plain_checklist(entries: Sequence[Entry]) -> str:
     """Generate a plaintext checklist."""
-    lines = []
-    lines.append("AISW-25 SECURITY REVIEW CHECKLIST")
-    lines.append("=" * 50)
-    lines.append("")
+    lines = ["AISW-25 SECURITY REVIEW CHECKLIST", "=" * 50, ""]
 
-    severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}
-    sorted_entries = sorted(
-        entries, key=lambda e: (severity_order.get(e.get("severity", ""), 3), e.get("rank", 99))
-    )
+    current_severity: str | None = None
+    for entry in sort_entries(entries):
+        if entry.severity != current_severity:
+            current_severity = entry.severity
+            lines.extend([f"\n[{entry.severity}]", "-" * 40])
 
-    current_severity = None
-    for entry in sorted_entries:
-        sev = entry.get("severity", "UNKNOWN")
-        if sev != current_severity:
-            current_severity = sev
-            lines.append(f"\n[{sev}]")
-            lines.append("-" * 40)
-
-        eid = entry.get("id", "???")
-        name = entry.get("name", "Unknown")
-        lines.append(f"\n  {eid}: {name}")
-
+        lines.append(f"\n  {entry.entry_id}: {entry.name}")
         lines.append("  Detection:")
-        for d in entry.get("detection", []):
-            lines.append(f"    [ ] {d}")
-
+        lines.extend(f"    [ ] {item}" for item in entry.detection)
         lines.append("  Mitigations:")
-        for m in entry.get("mitigations", []):
-            lines.append(f"    [ ] {m}")
+        lines.extend(f"    [ ] {item}" for item in entry.mitigations)
 
     return "\n".join(lines)
 
 
-def main():
+def find_entries_dir(cli_value: str | None) -> Path:
+    """Resolve the entries directory relative to the repo before cwd fallback."""
+    if cli_value is not None:
+        candidate = Path(cli_value).expanduser()
+        if candidate.is_dir():
+            return candidate.resolve()
+        raise FileNotFoundError(candidate)
+
+    script_dir = Path(__file__).resolve().parent
+    candidates = (
+        script_dir.parent / "entries",
+        Path.cwd() / "entries",
+        Path.cwd().parent / "entries",
+    )
+    for candidate in candidates:
+        if candidate.is_dir():
+            return candidate.resolve()
+
+    raise FileNotFoundError("entries")
+
+
+def load_entries(entries_dir: Path) -> list[Entry]:
+    """Load all entries from disk, rejecting partial or malformed catalogs."""
+    entry_files = sorted(entries_dir.glob("AISW-*.md"))
+    if not entry_files:
+        raise EntryParseError("no entry files found")
+
+    entries: list[Entry] = []
+    errors: list[str] = []
+
+    for filepath in entry_files:
+        try:
+            entries.append(parse_entry(filepath))
+        except EntryParseError as exc:
+            errors.append(f"{filepath.name}: {exc}")
+
+    if errors:
+        raise EntryParseError(
+            "failed to parse one or more entries:\n- " + "\n- ".join(errors)
+        )
+
+    return entries
+
+
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="Generate security review checklists from AISW-25 entries."
     )
     parser.add_argument(
         "--entries-dir",
         default=None,
-        help="Path to entries directory (default: ./entries or ../entries)",
+        help="Path to entries directory (default: repo-relative entries/)",
     )
     parser.add_argument(
         "--severity",
         nargs="+",
-        choices=["CRITICAL", "HIGH", "MEDIUM"],
+        choices=sorted(SEVERITY_ORDER),
         help="Filter by severity level(s)",
     )
     parser.add_argument(
@@ -199,55 +319,43 @@ def main():
 
     args = parser.parse_args()
 
-    # Find entries directory
-    entries_dir = args.entries_dir
-    if entries_dir is None:
-        for candidate in ["./entries", "../entries", "entries"]:
-            if os.path.isdir(candidate):
-                entries_dir = candidate
-                break
-
-    if entries_dir is None or not os.path.isdir(entries_dir):
+    try:
+        entries_dir = find_entries_dir(args.entries_dir)
+    except FileNotFoundError:
         print(
             "Error: entries directory not found. Use --entries-dir to specify.",
             file=sys.stderr,
         )
         sys.exit(1)
 
-    # Parse all entry files
-    all_entries = []
-    for filepath in sorted(Path(entries_dir).glob("AISW-*.md")):
-        try:
-            entry = parse_entry(str(filepath))
-            all_entries.append(entry)
-        except Exception as e:
-            print(f"Warning: failed to parse {filepath}: {e}", file=sys.stderr)
-
-    if not all_entries:
-        print("Error: no entry files found.", file=sys.stderr)
+    try:
+        filtered_entries = load_entries(entries_dir)
+    except EntryParseError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)
 
-    # Apply filters
-    filtered = all_entries
     if args.severity:
-        filtered = [e for e in filtered if e.get("severity") in args.severity]
+        allowed_severities = set(args.severity)
+        filtered_entries = [
+            entry for entry in filtered_entries if entry.severity in allowed_severities
+        ]
     if args.entries:
-        filtered = [e for e in filtered if e.get("id") in args.entries]
+        allowed_entries = set(args.entries)
+        filtered_entries = [
+            entry for entry in filtered_entries if entry.entry_id in allowed_entries
+        ]
 
-    if not filtered:
+    if not filtered_entries:
         print("Error: no entries match the specified filters.", file=sys.stderr)
         sys.exit(1)
 
-    # Generate output
     if args.format == "markdown":
-        output = generate_markdown_checklist(filtered, title=args.title)
+        output = generate_markdown_checklist(filtered_entries, title=args.title)
     else:
-        output = generate_plain_checklist(filtered)
+        output = generate_plain_checklist(filtered_entries)
 
-    # Write output
     if args.output:
-        with open(args.output, "w", encoding="utf-8") as f:
-            f.write(output)
+        Path(args.output).write_text(output, encoding="utf-8")
         print(f"Checklist written to {args.output}", file=sys.stderr)
     else:
         print(output)

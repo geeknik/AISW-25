@@ -1,0 +1,26 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile generator
+        run: python -m py_compile tools/checklist_generator.py
+
+      - name: Run regression tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Generate checklist
+        run: python tools/checklist_generator.py --format plain > /dev/null

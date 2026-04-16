@@ -35,9 +35,9 @@ A structured, citable catalog of 25 AI-induced software weakness patterns, each 
 
 | Severity | Count | Scope |
 |----------|-------|-------|
-| **CRITICAL** | 4 | Full data breach, supply chain compromise, or RCE from a single instance |
+| **CRITICAL** | 5 | Full data breach, supply chain compromise, or RCE from a single instance |
 | **HIGH** | 9 | Significant impact; systematically evades standard review |
-| **MEDIUM** | 12 | Exploitable under specific conditions or as an amplifier of other weaknesses |
+| **MEDIUM** | 11 | Exploitable under specific conditions or as an amplifier of other weaknesses |
 
 ## The Top 25 at a Glance
 
@@ -102,15 +102,21 @@ Five systemic dynamics make this urgent:
 ├── README.md
 ├── LICENSE                          # CC BY-SA 4.0
 ├── CONTRIBUTING.md
+├── .github/
+│   └── workflows/
+│       └── validate.yml             # Catalog and generator validation in CI
 ├── entries/
 │   ├── AISW-001.md                  # Individual entry files (structured markdown)
 │   ├── AISW-002.md
 │   ├── ...
 │   └── AISW-025.md
 ├── mappings/
-│   └── cwe-cross-reference.csv      # Machine-readable CWE mapping
+│   ├── cwe-cross-reference.csv      # Machine-readable CWE mappings, including N/A rows
+│   └── owasp-cross-reference.csv    # Machine-readable OWASP mappings, including N/A rows
+├── tests/
+│   └── test_catalog_integrity.py    # Regression tests for catalog integrity
 └── tools/
-    └── checklist-generator.py       # Generate review checklists from entries
+    └── checklist_generator.py       # Generate review checklists from entries
 ```
 
 ## Contributing

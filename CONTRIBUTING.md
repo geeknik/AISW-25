@@ -24,7 +24,7 @@ Implementation-specific countermeasures. Must include:
 
 ### New Entry Proposals
 Proposals for AI-induced weakness patterns not yet cataloged. Must include:
-- All fields defined in the taxonomy (see Section 3 of the specification)
+- All fields used in the current entry template in `entries/AISW-001.md` through `entries/AISW-025.md`
 - Evidence that the pattern is materially amplified by AI code generation
 - At least one concrete exploit scenario
 - Proposed CWE/OWASP mappings with justification
@@ -33,6 +33,7 @@ Proposals for AI-induced weakness patterns not yet cataloged. Must include:
 Corrections or additions to cross-reference mappings. Must include:
 - The specific mapping being corrected or added
 - CWE/OWASP identifier with rationale for the mapping
+- Use `N/A` in the identifier column when an entry is intentionally unmapped but still needs machine-readable coverage
 - Explanation of why the current mapping is incorrect (for corrections)
 
 ## What We Do Not Accept

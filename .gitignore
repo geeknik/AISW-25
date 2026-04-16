@@ -9,9 +9,13 @@ Thumbs.db
 .vscode/
 .idea/
 
-# Generated checklists (regenerate with tools/checklist-generator.py)
+# Generated checklists (regenerate with tools/checklist_generator.py)
 checklist*.md
 checklist*.txt
+
+# Python
+__pycache__/
+*.py[cod]
 
 # Node
 node_modules/
