@@ -167,4 +167,4 @@ You are free to share and adapt this material for any purpose, including commerc
 
 ---
 
-**Maintained by [Aether Systems Labs, Inc](https://aetherai.systems)**
+**Maintained by a community of hackers.**
